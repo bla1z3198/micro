@@ -62,7 +62,7 @@ func Print(timeout int) {
 
 		// Line 1: ERR
 		errText := Stat.Err
-		fmt.Printf("\r\033[2K  \033[90m%s\033[0m  \033[1;31mERR\033[0m: %s\n", ts, errText)
+		fmt.Printf("\r\033[2K  \033[90m%s\033[0m  \033[1;33mWR\033[0m      %s\n", ts, errText)
 
 		// Line 2: RX
 		fmt.Printf("\r\033[2K  \033[90m%s\033[0m  \033[1;32mRX\033[0m   %7.2fkB \033[90m(%6.2fkB/s)\033[0m\n",
@@ -72,10 +72,10 @@ func Print(timeout int) {
 		)
 
 		// Line 3: TX
-		fmt.Printf("\r\033[2K  \033[90m%s\033[0m  \033[1;36mTX\033[0m   %7.2fkB \033[90m(%6.2fkB/s)\033[0m",
+		fmt.Printf("\r\033[2K  \033[90m%s\033[0m  \033[1;36mTX\033[0m   %7.2fMB \033[90m(%6.2fMbps)\033[0m",
 			ts,
-			float64(CurrTX)/1024,
-			float64(CurrTX-PrevTX)/(1024*sec),
+			float64(CurrTX)/(1024*1024),
+			float64(CurrTX-PrevTX)/(125000*sec),
 		)
 
 		PrevRX = atomic.LoadUint64(&Stat.RXBytes)
