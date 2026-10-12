@@ -10,7 +10,7 @@
 
 # Simple start
 
-Download ZIPs from releases, unzip. Create a valid configs for server and client. Firstly start a server, then a client (at the now version client and server can has connectivity problem - just restart server and client).
+Download archives from releases, unzip. Create a valid configs for server and client. Firstly start a server, then a client (at the now version client and server can has connectivity problem - just restart server and client).
 
 ```
 chmod +x server
