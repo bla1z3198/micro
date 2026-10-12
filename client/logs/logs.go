@@ -65,10 +65,10 @@ func Print(timeout int) {
 		fmt.Printf("\r\033[2K  \033[90m%s\033[0m  \033[1;33mWR\033[0m      %s\n", ts, errText)
 
 		// Line 2: RX
-		fmt.Printf("\r\033[2K  \033[90m%s\033[0m  \033[1;32mRX\033[0m   %7.2fkB \033[90m(%6.2fkB/s)\033[0m\n",
+		fmt.Printf("\r\033[2K  \033[90m%s\033[0m  \033[1;32mRX\033[0m   %7.2fMB \033[90m(%6.2fMbps)\033[0m\n",
 			ts,
-			float64(CurrRX)/1024,
-			float64(CurrRX-PrevRX)/(1024*sec),
+			float64(CurrRX)/(1024*1024),
+			float64(CurrRX-PrevRX)/(125000*sec),
 		)
 
 		// Line 3: TX

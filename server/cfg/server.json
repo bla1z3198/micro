@@ -1,17 +1,17 @@
 {
   "network": {
-    "ip": "192.168.1.209",
-    "port": ":2443",
+    "ip": "0.0.0.0",
+    "port": "port",
     "logger": 1
   },
   "tunnel": {
-    "ip": "10.99.99.1/24",
+    "ip": "172.16.0.1/24",
     "mtu": 1280,
     "queueSize": 65535
   },
   "auth": {
-    "maxUsers": 4,
-    "subnetId": 10,
+    "maxUsers": maxUsers,
+    "subnetId": subnet,
     "password": "CRUMBLE"
   }
 }

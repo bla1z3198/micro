@@ -26,20 +26,6 @@ import (
 	"github.com/songgao/water"
 )
 
-const (
-	uid     = 4
-	connBuf = 26214400
-	header  = 19
-
-	s1 = 13
-	s2 = 15
-	s3 = 17
-	s4 = 16
-	s5 = 20
-
-	nonce = 12
-)
-
 var (
 	Info  Server
 	Route Routing
@@ -83,8 +69,10 @@ type Routing struct {
 }
 
 func Start() {
+	// Time of micro start
 	start := time.Now()
 
+	// Read cfg and iptable
 	Server, ServerLoadError := os.Open("cfg/server.json")
 	if ServerLoadError != nil {
 		log.Fatalln("Can't load cfg file:", ServerLoadError)
@@ -116,6 +104,7 @@ func Start() {
 		log.Fatalln("Can't parse iptable json:", IptableJSONError)
 	}
 
+	// Init Hash and WAN/LAN route tables
 	Hash = encryption.Secret(Info.Auth.Password)
 	Route.WAN = make([]atomic.Pointer[net.UDPAddr], Info.Auth.MaxUsers+1)
 	Route.LAN = make(map[[4]byte]uint32, Info.Auth.MaxUsers+1)
@@ -130,21 +119,17 @@ func Start() {
 		Route.LAN[ipv4] = uid
 	}
 
+	// Set up TUN
 	config := water.Config{
 		DeviceType: water.TUN,
 	}
 
-	config.Name = "SS2"
+	config.Name = "microServer"
 	config.MultiQueue = true
 
 	Tun, err := water.New(config)
 	if err != nil {
 		log.Fatalln("Can't create TUN:", err)
-	}
-
-	cmd := exec.Command("ethtool", "-K", config.Name, "tx", "off")
-	if err := cmd.Run(); err != nil {
-		fmt.Printf("Warning: Could not disable TX offload: %v\n", err)
 	}
 
 	mtu := strconv.Itoa(int(Info.Tunnel.MTU))
@@ -171,31 +156,30 @@ func Start() {
 		log.Fatalln("Can't set MTU for TUN:", c4)
 	}
 
+	// Set up connection (listen)
 	laddr, _ := net.ResolveUDPAddr("udp", Info.Network.IP+Info.Network.Port)
 	Conn, Connerr = net.ListenUDP("udp", laddr)
 	if Connerr != nil {
 		panic(Connerr)
 	}
 
-	RBError := Conn.SetReadBuffer(connBuf)
+	RBError := Conn.SetReadBuffer(26214400)
 	if RBError != nil {
 		log.Fatalln("Can't extend connection buffer for read:", RBError)
 	}
 
-	WBError := Conn.SetWriteBuffer(connBuf)
+	WBError := Conn.SetWriteBuffer(26214400)
 	if WBError != nil {
 		log.Fatalln("Can't extend connection buffer for write:", WBError)
 	}
 
-	for range 1 {
-		go Receive(Tun, Conn)
-		go Transmit(Tun, Conn)
-	}
-
+	// Start RX/TX pipelines and logs
+	go Receive(Tun, Conn)
+	go Transmit(Tun, Conn)
 	go logs.Print(int(Info.Network.Logger))
 
+	// Banner output
 	Banner(
-		"v1",
 		Info.Network.IP+Info.Network.Port,
 		Info.Tunnel.IP,
 		Info.Tunnel.MTU,
@@ -204,6 +188,7 @@ func Start() {
 }
 
 func Receive(Tun *water.Interface, Conn *net.UDPConn) {
+	// Init buffer
 	pkt := make([]byte, Info.Tunnel.MTU+12)
 
 	for {
@@ -215,6 +200,7 @@ func Receive(Tun *water.Interface, Conn *net.UDPConn) {
 			continue
 		}
 
+		// Drop small packets
 		if n < 20 {
 			logs.Drop(true, errors.New("Too small: "+strconv.Itoa(n)+" bytes"))
 			continue
@@ -227,7 +213,7 @@ func Receive(Tun *water.Interface, Conn *net.UDPConn) {
 		uid := binary.LittleEndian.Uint32(pkt[:4])
 		if Route.WAN[uid].Load() == nil {
 			if Route.WAN[uid].CompareAndSwap(nil, addr) {
-				logs.Drop(true, errors.New("New user -> "+addr.String()))
+				logs.Info("New user -> " + addr.String())
 			}
 		}
 
@@ -251,10 +237,12 @@ func Receive(Tun *water.Interface, Conn *net.UDPConn) {
 }
 
 func Transmit(Tun *water.Interface, Conn *net.UDPConn) {
+	// Init FID, UID and buffer
 	var FID uint64 = 1
 	var UID uint32 = 4294967295
 	pkt := make([]byte, Info.Tunnel.MTU+12)
 
+	// Copy LAN map (table)
 	LAN := make(map[[4]byte]uint32)
 	maps.Copy(LAN, Route.LAN)
 
@@ -275,17 +263,13 @@ func Transmit(Tun *water.Interface, Conn *net.UDPConn) {
 			continue
 		}
 
-		// Get WAN
+		// Get WAN address
 		WAN := Route.WAN[LAN[[4]byte(pkt[28:32])]].Load()
 		if WAN == nil {
 			continue
 		}
 
-		// Encrypt data
-		// fmt.Println("TX:")
-		// fmt.Println(pkt[12 : 12+len(back)])
-		// fmt.Println("")
-
+		// Encrypt packet
 		encryption.Encrypt(pkt[12:12+k], pkt[12:12+k], Hash, pkt[:12])
 
 		// Send to network
@@ -320,7 +304,7 @@ func ListenReuseUDP(addr string) (*net.UDPConn, error) {
 	return conn.(*net.UDPConn), nil
 }
 
-func Banner(vrs, adr, lan string, mtu uint16, startTime time.Time) {
+func Banner(adr, lan string, mtu uint16, startTime time.Time) {
 	const (
 		whiteBold = "\033[1;37m"
 		bold      = "\033[1m"
@@ -339,7 +323,7 @@ func Banner(vrs, adr, lan string, mtu uint16, startTime time.Time) {
 
 	fmt.Println(whiteBold + banner + reset)
 	fmt.Printf("\n    %sVRS%s  %s%s%s %s(started in %s%s%s)%s\n",
-		bold, reset, whiteBold, vrs, reset, gray, whiteBold, elapsed, gray, reset)
+		bold, reset, whiteBold, "v1 (server)", reset, gray, whiteBold, elapsed, gray, reset)
 	fmt.Printf("    %sADR%s  %s%s%s\n", bold, reset, whiteBold, adr, reset)
 	fmt.Printf("    %sLAN%s  %s%s%s\n", bold, reset, whiteBold, lan, reset)
 	fmt.Printf("    %sMTU%s  %s%d%s\n\n", bold, reset, whiteBold, mtu, reset)

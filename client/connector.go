@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"time"
 
@@ -27,8 +26,6 @@ var (
 
 	Connection      *net.UDPConn
 	ConnectionError error
-
-	CPU = runtime.NumCPU()
 )
 
 type Client struct {
@@ -57,8 +54,10 @@ type Auth struct {
 }
 
 func Start() {
+	// Time execution start
 	start := time.Now()
 
+	// Read cfg
 	Client, ClientLoadError := os.Open("cfg/connector.json")
 	if ClientLoadError != nil {
 		log.Fatalln("Can't load cfg file:", ClientLoadError)
@@ -74,13 +73,15 @@ func Start() {
 		log.Fatalln("Can't parse cfg json:", ClientJSONError)
 	}
 
+	// Hash for encryption
 	Hash = encryption.Secret(Info.Auth.Password)
 
+	// Set up TUN
 	config := water.Config{
 		DeviceType: water.TUN,
 	}
 
-	config.Name = "SS"
+	config.Name = "microCLient"
 	config.MultiQueue = true
 
 	Tun, err := water.New(config)
@@ -122,6 +123,7 @@ func Start() {
 		log.Fatalln("Can't set MTU for TUN:", c6)
 	}
 
+	// Set up connection (dial)
 	raddr, _ := net.ResolveUDPAddr(
 		"udp",
 		Info.Network.IP+Info.Network.Port)
@@ -143,15 +145,13 @@ func Start() {
 		log.Fatalln("Can't extend connection buffer for write:", WBError)
 	}
 
-	for range CPU / 2 {
-		go Receive(Tun)
-		go Transmit(Tun)
-	}
-
+	// Start RX/TX pipelines and logs
+	go Receive(Tun)
+	go Transmit(Tun)
 	go logs.Print(int(Info.Network.Logger))
 
+	// Banner output
 	Banner(
-		"v1",
 		Info.Network.IP+":"+Info.Network.Port,
 		Info.Tunnel.IP,
 		Info.Tunnel.MTU,
@@ -199,6 +199,7 @@ func Receive(Tun *water.Interface) {
 }
 
 func Transmit(Tun *water.Interface) {
+	// Init FID, UID, and buffer
 	var FID uint64 = 1
 	UID := Info.Auth.UID
 	pkt := make([]byte, Info.Tunnel.MTU+12)
@@ -237,7 +238,7 @@ func Transmit(Tun *water.Interface) {
 	}
 }
 
-func Banner(vrs, adr, lan string, mtu uint16, startTime time.Time) {
+func Banner(adr, lan string, mtu uint16, startTime time.Time) {
 	const (
 		whiteBold = "\033[1;37m"
 		bold      = "\033[1m"
@@ -255,8 +256,8 @@ func Banner(vrs, adr, lan string, mtu uint16, startTime time.Time) {
 
 	fmt.Println(whiteBold + banner + reset)
 	fmt.Printf("\n    %sVRS%s  %s%s%s %s(started in %s%s%s)%s\n",
-		bold, reset, whiteBold, vrs, reset, gray, whiteBold, elapsed, gray, reset)
-	fmt.Printf("    %sADR%s  %s%s%s\n", bold, reset, whiteBold, adr, reset)
+		bold, reset, whiteBold, "v1 (client)", reset, gray, whiteBold, elapsed, gray, reset)
+	fmt.Printf("    %sWAN%s  %s%s%s\n", bold, reset, whiteBold, adr, reset)
 	fmt.Printf("    %sLAN%s  %s%s%s\n", bold, reset, whiteBold, lan, reset)
 	fmt.Printf("    %sMTU%s  %s%d%s\n\n", bold, reset, whiteBold, mtu, reset)
 	fmt.Println("")

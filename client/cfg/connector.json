@@ -1,18 +1,18 @@
 {
   "network": {
-    "ip": "192.168.1.209",
-    "port": ":2443",
+    "ip": "dstIP",
+    "port": "dstPort",
     "logger": 1
   },
   "tunnel": {
-    "ip": "10.99.99.2/24",
+    "ip": "172.16.0.2/24",
     "mtu": 1280,
     "queueSize": 65535
   },
   "auth": {
-    "uid": 1,
-    "maxUsers": 100,
-    "subnetId": 10,
+    "uid": uid,
+    "maxUsers": maxUsers,
+    "subnetId": subnet,
     "password": "CRUMBLE"
   }
 }
